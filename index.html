@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Control integral de obra | Tablero gerencial</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+html{scroll-behavior:smooth;scroll-padding-top:92px}
+body{font-family:Manrope,system-ui,sans-serif;color:#1a2238;background:#fff}
+.card{background:#fff;border:1px solid #e3e8f4;border-radius:16px}
+.ok{--c:#1a7f4b}.warn{--c:#b9770e}.bad{--c:#CA102E}.na{--c:#7b86a6}
+.st{border-top:3px solid var(--c)}.dot{background:var(--c)}.tx{color:var(--c)}
+.pill{padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 11%,white)}
+.h2{font-size:1.6rem;font-weight:800;color:#012169;letter-spacing:-.01em}
+.h2:before{content:"";display:block;width:34px;height:4px;background:#CA102E;border-radius:4px;margin-bottom:8px}
+.nav a{padding:8px 11px;border-radius:9px;color:#34406a}.nav a:hover{background:#eef1f9;color:#012169}
+.floor{cursor:pointer}.floor:hover rect:first-child{stroke:#CA102E;stroke-width:1.5}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
+th{position:sticky;top:0;background:#f3f5fb;color:#012169;text-align:left;padding:9px 10px;font-weight:700;white-space:nowrap;border-bottom:1px solid #dfe5f3}
+td{padding:8px 10px;border-bottom:1px solid #eef1f8;vertical-align:top}tr:hover td{background:#fafbfe}
+.sc{overflow:auto;max-height:480px;border-radius:12px;border:1px solid #e3e8f4}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid #d5dcef;border-radius:10px;padding:7px 12px;font-weight:700;font-size:13px;color:#012169;background:#fff;cursor:pointer}
+.btn:hover{background:#012169;color:#fff}.btn.on{background:#012169;color:#fff}
+input,select{border:1px solid #d5dcef;border-radius:10px;padding:7px 10px;font-size:13px;background:#fff}
+:focus-visible{outline:2px solid #CA102E;outline-offset:2px}
+.ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+@keyframes pulse{50%{opacity:.55}}.live{animation:pulse 2s infinite}
+@media(prefers-reduced-motion:reduce){.live{animation:none}html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200">
+ <div class="max-w-7xl mx-auto px-4 h-20 flex items-center gap-3">
+  <img src="logom.png" alt="Logo" class="h-14 md:h-16 w-auto object-contain" onerror="this.style.display='none'">
+  <nav class="nav hidden xl:flex text-sm font-semibold ml-4">
+   <a href="#resumen">Resumen</a><a href="#indicadores">Indicadores</a><a href="#plazo">Avance y plazo</a><a href="#costos">Costos</a><a href="#calidad">Calidad, SST y riesgos</a><a href="#contratos">Compras y contratos</a><a href="#plan">Plan de trabajo</a><a href="#datos">Todas las hojas</a>
+  </nav>
+  <div class="ml-auto flex items-center gap-2 flex-wrap justify-end">
+   <label class="hidden md:flex items-center gap-2 text-xs font-semibold text-slate-500">Fecha de corte<input type="date" id="cut"></label>
+   <button class="btn" id="refresh" title="Volver a leer el Excel"><svg class="ic" viewBox="0 0 24 24" id="i-ref"></svg>Actualizar</button>
+   <label class="btn" title="Usar un Excel local"><svg class="ic" viewBox="0 0 24 24" id="i-up"></svg><span class="hidden sm:inline">Cargar Excel</span><input type="file" id="file" accept=".xlsx,.xlsm" class="hidden"></label>
+  </div>
+ </div>
+ <div id="stamp" class="max-w-7xl mx-auto px-4 pb-1 text-[11px] text-slate-500 text-right"></div>
+</header>
+
+<main>
+<div id="err" class="hidden max-w-7xl mx-auto mt-4 mx-4 p-4 rounded-xl border border-[#CA102E] text-sm text-[#CA102E] bg-[#fff5f6]"></div>
+
+<section id="resumen" class="max-w-7xl mx-auto px-4 pt-8 pb-10">
+ <div class="grid lg:grid-cols-12 gap-8 items-start">
+  <div class="lg:col-span-7">
+   <div class="flex flex-wrap items-center gap-3 mb-3"><span id="sem" class="pill st na"></span><span class="text-xs text-slate-500" id="semtxt"></span></div>
+   <h1 class="text-3xl md:text-5xl font-extrabold text-[#012169] leading-[1.05] tracking-tight">Control integral de construcción</h1>
+   <p class="mt-3 text-slate-600 max-w-xl">Seguimiento de plazo, costo, calidad, seguridad y riesgos de la obra, conectado al Excel de control. Cambie el Excel y el tablero se actualiza.</p>
+   <h3 class="mt-7 mb-3 font-bold text-[#012169]">Resumen ejecutivo</h3>
+   <div id="kpis" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3"></div>
+   <h3 class="mt-7 mb-3 font-bold text-[#012169]">Cronograma y plan de trabajo</h3>
+   <div id="kpis2" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+  </div>
+  <div class="lg:col-span-5 lg:sticky lg:top-28">
+   <div class="card p-5" style="background:linear-gradient(180deg,#f6f8fd,#fff)">
+    <div class="flex items-end justify-between">
+     <div><div class="text-xs font-semibold text-slate-500">Avance físico de la obra</div><div id="big" class="text-5xl font-extrabold text-[#012169] leading-none mt-1"></div></div>
+     <div class="text-right text-xs text-slate-500">Planificado a la fecha<div id="bigp" class="text-xl font-bold text-[#CA102E]"></div></div>
+    </div>
+    <div id="bld" class="mt-2"></div>
+    <div id="floorinfo" class="text-xs text-slate-600 min-h-[34px] mt-1">Pase el cursor por un piso para ver su fase. Haga clic para filtrar el plan.</div>
+    <div class="flex gap-4 text-[11px] text-slate-500 mt-2"><span><i class="inline-block w-3 h-3 rounded-sm bg-[#012169] align-middle"></i> Fase terminada</span><span><i class="inline-block w-3 h-3 rounded-sm bg-[#CA102E] align-middle"></i> En ejecución</span><span><i class="inline-block w-3 h-3 rounded-sm bg-[#e4e9f5] align-middle"></i> Por iniciar</span></div>
+   </div>
+  </div>
+ </div>
+</section>
+
+<section id="indicadores" class="bg-[#f6f8fd] py-12"><div class="max-w-7xl mx-auto px-4">
+ <h2 class="h2">Indicadores de control</h2>
+ <p class="text-sm text-slate-600 mt-1 mb-5">Calculados según la hoja Indicadores. Haga clic en un indicador para ver su fórmula, meta y uso.</p>
+ <div id="inds" class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+</div></section>
+
+<section id="plazo" class="max-w-7xl mx-auto px-4 py-12">
+ <h2 class="h2">Avance y plazo</h2>
+ <div class="grid lg:grid-cols-2 gap-4 mt-5">
+  <div class="card p-4"><h3 class="font-bold">Avance real vs planificado por fase</h3><p class="text-xs text-slate-500">Indicadores: avance físico ponderado y SPI</p><div class="h-80 mt-2"><canvas id="c1"></canvas></div></div>
+  <div class="card p-4"><h3 class="font-bold">Puntualidad de las actividades</h3><p class="text-xs text-slate-500">Indicador: cumplimiento del cronograma</p><div class="h-80 mt-2"><canvas id="c2"></canvas></div></div>
+  <div class="card p-4 lg:col-span-2"><h3 class="font-bold">Cronograma por fase: plan frente a real</h3><p class="text-xs text-slate-500">La línea roja marca la fecha de corte</p><div class="h-96 mt-2"><canvas id="c3"></canvas></div></div>
+  <div class="card p-4 lg:col-span-2"><h3 class="font-bold">Desviación de los hitos (días)</h3><p class="text-xs text-slate-500">Indicador: desviación de hitos. Meta: 0 días o menos</p><div class="h-64 mt-2"><canvas id="c4"></canvas></div></div>
+ </div>
+</section>
+
+<section id="costos" class="bg-[#f6f8fd] py-12"><div class="max-w-7xl mx-auto px-4">
+ <h2 class="h2">Costos y flujo de caja</h2>
+ <div class="grid lg:grid-cols-2 gap-4 mt-5">
+  <div class="card p-4"><h3 class="font-bold">Presupuesto, valor ganado y costo ejecutado por capítulo</h3><p class="text-xs text-slate-500">Indicadores: variación de costo y CPI. Millones de COP</p><div class="h-96 mt-2"><canvas id="c5"></canvas></div></div>
+  <div class="card p-4"><h3 class="font-bold">Curva S: desembolsos acumulados</h3><p class="text-xs text-slate-500">Indicador: desviación de flujo de caja. Millones de COP</p><div class="h-96 mt-2"><canvas id="c6"></canvas></div></div>
+ </div>
+</div></section>
+
+<section id="calidad" class="max-w-7xl mx-auto px-4 py-12">
+ <h2 class="h2">Calidad, seguridad y riesgos</h2>
+ <div class="grid lg:grid-cols-3 gap-4 mt-5">
+  <div class="card p-4"><h3 class="font-bold">Resultado de inspecciones</h3><p class="text-xs text-slate-500">Indicadores: tasa y cierre oportuno de no conformidades</p><div class="h-64 mt-2"><canvas id="c7"></canvas></div></div>
+  <div class="card p-4"><h3 class="font-bold">Registros SST y estado de acciones</h3><p class="text-xs text-slate-500">Indicadores: accidentes y cierre de acciones SST</p><div class="h-64 mt-2"><canvas id="c8"></canvas></div></div>
+  <div class="card p-4"><div class="flex items-center justify-between"><h3 class="font-bold">Matriz de riesgos</h3><div class="flex gap-1"><button class="btn on" data-rm="0">Inherente</button><button class="btn" data-rm="1">Residual</button></div></div><p class="text-xs text-slate-500">Probabilidad × impacto. Rojo desde nivel 12</p><div id="rm" class="mt-2"></div></div>
+ </div>
+</section>
+
+<section id="contratos" class="bg-[#f6f8fd] py-12"><div class="max-w-7xl mx-auto px-4">
+ <h2 class="h2">Compras, materiales y contratos</h2>
+ <div class="grid lg:grid-cols-3 gap-4 mt-5">
+  <div class="card p-4"><h3 class="font-bold">Estado de las compras</h3><p class="text-xs text-slate-500">Indicador: entregas a tiempo</p><div class="h-72 mt-2"><canvas id="c9"></canvas></div></div>
+  <div class="card p-4 lg:col-span-2"><h3 class="font-bold">Contratistas: avance físico vs financiero (%)</h3><p class="text-xs text-slate-500">Indicador: cumplimiento documental de contratistas</p><div class="h-72 mt-2"><canvas id="c10"></canvas></div></div>
+  <div class="card p-4 lg:col-span-3"><h3 class="font-bold">Entrega y cierre</h3><p class="text-xs text-slate-500">Indicador: cierre de pendientes</p><div id="ent" class="mt-3"></div></div>
+ </div>
+</div></section>
+
+<section id="plan" class="max-w-7xl mx-auto px-4 py-12">
+ <h2 class="h2">Plan de trabajo</h2>
+ <div class="flex flex-wrap gap-2 my-4">
+  <input id="q" placeholder="Buscar actividad o responsable" class="w-64"><select id="fph"></select><select id="fes"></select><select id="fal"></select><button class="btn" id="clr">Limpiar filtros</button><span id="cnt" class="text-xs text-slate-500 self-center"></span>
+ </div>
+ <div class="sc"><table id="tplan"></table></div>
+</section>
+
+<section id="datos" class="bg-[#f6f8fd] py-12"><div class="max-w-7xl mx-auto px-4">
+ <h2 class="h2">Todas las hojas del Excel</h2>
+ <div id="tabs" class="flex flex-wrap gap-2 my-4"></div>
+ <input id="dq" placeholder="Buscar en la hoja" class="w-64 mb-3">
+ <div class="sc bg-white"><table id="tdata"></table></div>
+</div></section>
+</main>
+
+<footer class="border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+ <img src="logom.png" alt="" class="h-9 mx-auto mb-2 object-contain" onerror="this.style.display='none'">
+ Tablero conectado a <b>piloto_obra.xlsx</b>. Se vuelve a leer cada 60 segundos.
+</footer>
+
+<script>
+const XLSX_URL='piloto_obra.xlsx',NV='#012169',RD='#CA102E',GY='#c9d1e6',MID='#6a82c2';
+const $=s=>document.querySelector(s),N=v=>+v||0,DAY=864e5;
+const pn=v=>{v=N(v);return v>1?v/100:v};
+const pct=v=>(v*100).toFixed(1).replace('.',',')+'%';
+const M=v=>(v<0?'-':'')+'$ '+Math.abs(v/1e6).toLocaleString('es-CO',{maximumFractionDigits:0})+' M';
+const nd=d=>{const x=new Date(+d+432e5);return new Date(x.getFullYear(),x.getMonth(),x.getDate())};
+const fd=d=>d instanceof Date?d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):(d??'');
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const IC={list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',check:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>',play:'<circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4Z"/>',alert:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/>',trend:'<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',wallet:'<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/>',dollar:'<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',shield:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4M12 16h.01"/>',clip:'<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',hat:'<path d="M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5M14 6a6 6 0 0 1 6 6v3M4 15v-3a6 6 0 0 1 6-6"/><rect x="2" y="15" width="20" height="4" rx="1"/>',flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7"/>',cal:'<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',ref:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/>',up:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>'};
+const ico=k=>`<svg class="ic" viewBox="0 0 24 24">${IC[k]}</svg>`;
+$('#i-ref').innerHTML=IC.ref;$('#i-up').innerHTML=IC.up;
+
+/* ---------- lectura del Excel ---------- */
+const SH={plan:['Plan de trabajo','ID'],cron:['Cronograma','ID actividad'],pres:['Presupuesto','Código'],caja:['Flujo de caja','Periodo (mes)'],comp:['Compras y materiales','ID'],cont:['Contratistas','ID'],cal:['Calidad','ID'],sst:['SST','ID'],ries:['Riesgos','ID'],rec:['Recursos','ID'],doc:['Licencias y documentos','ID'],bit:['Bitácora de obra','Fecha'],cam:['Cambios y adicionales','ID'],ent:['Entrega y cierre','ID'],ind:['Indicadores','Dimensión']};
+let D={},cut=nd(new Date()),CH={},P=[];
+function rd(wb,[name,key]){const ws=wb.Sheets[name];if(!ws)return[];
+ const a=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}),i=a.findIndex(r=>r[0]===key);if(i<0)return[];
+ const h=a[i];return a.slice(i+1).filter(r=>r.slice(1).some(v=>v!=null&&v!=='')||(r[0]!=null&&key==='Fecha')).map(r=>Object.fromEntries(h.map((k,j)=>[k,r[j] instanceof Date?nd(r[j]):r[j]??null])))}
+async function load(buf){const wb=XLSX.read(buf,{cellDates:true});D={};for(const k in SH)D[k]=rd(wb,SH[k]);D.names=Object.keys(SH).map(k=>[k,SH[k][0]]);render();
+ $('#stamp').textContent='Datos leídos a las '+new Date().toLocaleTimeString('es-CO')+' desde '+XLSX_URL;$('#err').classList.add('hidden')}
+async function pull(quiet){try{const r=await fetch(XLSX_URL+'?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);await load(await r.arrayBuffer())}
+ catch(e){if(!quiet||!D.plan){const b=$('#err');b.classList.remove('hidden');b.innerHTML='<b>No se pudo leer piloto_obra.xlsx.</b> Verifique que el Excel esté en la misma carpeta que este index.html y que la página se abra desde GitHub Pages o un servidor (no con doble clic). Mientras tanto puede usar <b>Cargar Excel</b>.'}}}
+$('#refresh').onclick=()=>pull();
+$('#file').onchange=async e=>{const f=e.target.files[0];if(f)await load(await f.arrayBuffer())};
+$('#cut').value=cut.toISOString().slice(0,10);
+$('#cut').onchange=e=>{const v=e.target.value;cut=v?nd(new Date(v+'T12:00:00')):nd(new Date());if(D.plan)render()};
+
+/* ---------- cálculos ---------- */
+const ws=(a,f)=>{const t=a.reduce((s,r)=>s+r.w,0);return t?a.reduce((s,r)=>s+f(r)*r.w,0)/t:0};
+const grp=(a,f)=>{const m=new Map();a.forEach(r=>{const k=f(r);(m.get(k)||m.set(k,[]).get(k)).push(r)});return m};
+function calc(){
+ P=D.plan.filter(r=>r['Fase']);
+ P.forEach(r=>{const s=r['Fecha inicio plan'],f=r['Fecha fin plan'];r.p=pn(r['% avance']);r.w=N(r['Peso (%)'])||1;
+  r.al=r.Estado==='Terminado'?'Cerrada':!f?'Sin fecha':cut>f?'Atrasada':cut>=new Date(+f-7*DAY)?'Por vencer':'En plazo';
+  r.pl=!s||!f?0:Math.max(0,Math.min(1,(cut-s)/(f-s+DAY)));
+  r.dev=r.Estado==='Terminado'&&r['Fecha fin real']&&f?Math.round((r['Fecha fin real']-f)/DAY):r.al==='Atrasada'?Math.round((cut-f)/DAY):0});
+ const C={};C.real=ws(P,r=>r.p);C.plan=ws(P,r=>r.pl);C.spi=C.plan?C.real/C.plan:0;
+ C.ph=[...grp(P,r=>r.Fase)].map(([n,a])=>({n,a,nm:n.replace(/^\d+\.\s*/,'').toLowerCase().replace(/^./,c=>c.toUpperCase()),k:n.slice(0,2),p:ws(a,r=>r.p),pl:ws(a,r=>r.pl)}));
+ C.pr=D.pres.filter(r=>/^\d+$/.test(String(r['Código'])&&r['Código'])).map(r=>{const q=N(r['Cantidad presupuestada']),ap=q*N(r['Precio unitario presupuesto']),ej=N(r['Cantidad ejecutada'])*N(r['Costo unitario real']);return{n:r['Capítulo / actividad'],ap,ej,ev:ap*Math.min(1,q?N(r['Cantidad ejecutada'])/q:0)}});
+ C.AP=C.pr.reduce((s,r)=>s+r.ap,0);C.AC=C.pr.reduce((s,r)=>s+r.ej,0);C.EV=C.pr.reduce((s,r)=>s+r.ev,0);
+ const lv=(r,s)=>N(r['Probabilidad'+s])*N(r['Impacto'+s]);
+ C.ri=D.ries.filter(r=>r['Riesgo / oportunidad']);C.ri.forEach(r=>{r.l0=lv(r,' (1-5)')||N(r['Nivel inherente']);r.p0=N(r['Probabilidad (1-5)']);r.i0=N(r['Impacto (1-5)']);r.p1=N(r['Probabilidad residual']);r.i1=N(r['Impacto residual']);r.l1=r.p1*r.i1});
+ C.cal=D.cal.filter(r=>r['Fecha']);C.sst=D.sst.filter(r=>r['Fecha']);C.comp=D.comp.filter(r=>r['Material / servicio']);C.con=D.cont.filter(r=>r['Contratista / proveedor']);
+ C.hit=D.cron.filter(r=>r['Hito (Sí/No)']==='Sí');C.caja=D.caja.filter(r=>r['Periodo (mes)']);
+ C.ncs=C.cal.filter(r=>String(r['Resultado']).startsWith('No conforme'));
+ C.nca=C.cal.filter(r=>r['Estado']!=='Cerrada').length;C.acc=C.sst.filter(r=>r['Clasificación']==='Accidente').length;
+ C.crit=C.ri.filter(r=>r.l1>=12).length;C.late=P.filter(r=>r.al==='Atrasada').length;C.soon=P.filter(r=>r.al==='Por vencer').length;
+ return C}
+const S=(g,w)=>g?'ok':w?'warn':'bad';
+function inds(C){
+ const t=P.filter(r=>r.Estado==='Terminado'),ot=t.filter(r=>r['Fecha fin real']&&r['Fecha fin real']<=r['Fecha fin plan']).length,cp=t.length?ot/t.length:0;
+ const hd=C.hit.length?C.hit.reduce((s,r)=>s+N(r['Desviación (días)']),0)/C.hit.length:0;
+ const cpi=C.AC?C.EV/C.AC:0;
+ const ven=C.comp.filter(r=>r['Fecha entrega prevista']&&r['Fecha entrega prevista']<=cut),ent=ven.filter(r=>r['Fecha entrega real']&&r['Fecha entrega real']<=r['Fecha entrega prevista']).length,ep=ven.length?ent/ven.length:0;
+ const ncv=C.cal.filter(r=>r['No conformidad / hallazgo']&&r['Fecha compromiso']&&r['Fecha compromiso']<=cut),nco=ncv.filter(r=>r['Fecha cierre']&&r['Fecha cierre']<=r['Fecha compromiso']).length,nc=ncv.length?nco/ncv.length:0;
+ const ac=C.sst.filter(r=>r['Estado acción']),acc=ac.filter(r=>r['Estado acción']==='Cerrada').length,aq=ac.length?acc/ac.length:0;
+ const dc=C.caja.reduce((s,r)=>s+N(r['Desembolso real'])-N(r['Desembolso programado']),0),pc=C.caja.reduce((s,r)=>s+N(r['Desembolso programado']),0);
+ const ca=C.con.filter(r=>r['Estado contractual']==='Activo'),cd=ca.filter(r=>r['Pólizas vigentes (Sí/No)']==='Sí'&&r['Seguridad social al día']==='Sí').length,cq=ca.length?cd/ca.length:0;
+ const en=D.ent.filter(r=>r['Entregable / requisito']),eq=en.length?en.filter(r=>/^(cerr|cumpl|complet|termin|recib|aprob)/i.test(r['Estado'])).length/en.length:0;
+ const nd_=d=>({v:'Sin datos',st:'na',d});
+ return[
+ ['cumplimiento del cron',()=>({v:pct(cp),b:cp,st:S(cp>=.9,cp>=.75),d:`${ot} de ${t.length} terminadas a tiempo`})],
+ ['hitos',()=>({v:hd.toFixed(1).replace('.',',')+' días',st:S(hd<=0,hd<=5),d:`Promedio de ${C.hit.length} hitos`})],
+ ['avance físico',()=>({v:pct(C.real),b:C.real,st:S(C.real>=C.plan,C.real>=.9*C.plan),d:'Planificado a la fecha: '+pct(C.plan)})],
+ ['variación de costo',()=>({v:M(C.AC-C.AP),st:C.AC-C.AP<=0?'ok':'bad',d:'Sobrecosto sobre lo ya ejecutado: '+M(C.AC-C.EV)})],
+ ['(cpi)',()=>({v:cpi.toFixed(2).replace('.',','),st:S(cpi>=1,cpi>=.95),d:'Valor ganado '+M(C.EV)+' / costo real '+M(C.AC)})],
+ ['(spi)',()=>({v:C.spi.toFixed(2).replace('.',','),st:S(C.spi>=1,C.spi>=.95),d:'Avance real / avance planificado'})],
+ ['entregas a tiempo',()=>ven.length?{v:pct(ep),b:ep,st:S(ep>=.95,ep>=.8),d:`${ent} de ${ven.length} órdenes vencidas`}:nd_('Sin órdenes vencidas')],
+ ['tasa de no conf',()=>({v:pct(C.cal.length?C.ncs.length/C.cal.length:0),b:C.cal.length?C.ncs.length/C.cal.length:0,st:C.ncs.length?'warn':'ok',d:`${C.ncs.length} no conformes en ${C.cal.length} inspecciones`})],
+ ['cierre oportuno',()=>ncv.length?{v:pct(nc),b:nc,st:S(nc>=.95,nc>=.8),d:`${nco} de ${ncv.length} cerradas en plazo`}:nd_('Sin no conformidades vencidas')],
+ ['frecuencia de acc',()=>({v:C.acc+(C.acc===1?' accidente':' accidentes'),st:C.acc?'bad':'ok',d:'La tasa exige horas trabajadas'})],
+ ['acciones sst',()=>ac.length?{v:pct(aq),b:aq,st:S(aq>=.95,aq>=.8),d:`${acc} de ${ac.length} acciones cerradas`}:nd_('Sin acciones')],
+ ['riesgos críticos',()=>({v:String(C.crit),st:C.crit?'bad':'ok',d:'Riesgos nivel 12 o más sin tratamiento'})],
+ ['flujo de caja',()=>({v:M(dc),st:S(Math.abs(dc)<=.05*pc,Math.abs(dc)<=.1*pc),d:pc?'Equivale a '+pct(dc/pc)+' de lo programado':''})],
+ ['documental de contr',()=>ca.length?{v:pct(cq),b:cq,st:S(cq>=1,cq>=.8),d:`${cd} de ${ca.length} contratistas al día`}:nd_('Sin contratistas')],
+ ['productividad',()=>nd_('Diligencie la hoja Recursos y la bitácora')],
+ ['pendientes',()=>({v:pct(eq),b:eq,st:eq===1?'ok':'na',d:'Pendientes cerrados antes de la entrega'})],
+ ['residuos',()=>nd_('Sin registros ambientales')],
+ ['documentos aprobados',()=>D.doc.filter(r=>r['Documento / permiso']).length?{v:'Ver hoja',st:'na',d:''}:nd_('Diligencie Licencias y documentos')]]}
+
+/* ---------- render ---------- */
+function mk(id,cfg){CH[id]?.destroy();CH[id]=new Chart(document.getElementById(id),cfg)}
+Chart.defaults.font.family='Manrope';Chart.defaults.color='#475069';
+const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,usePointStyle:true}}}};
+const sel=(n,a)=>`<option value="">${n}</option>`+a.map(x=>`<option>${esc(x)}</option>`).join('');
+let C,RM=0;
+function render(){C=calc();hero();indic();charts();risks();ent();filters();tplan();tabs()}
+
+function hero(){
+ const done=P.filter(r=>r.Estado==='Terminado').length,run=P.filter(r=>r.Estado==='En ejecución').length;
+ const k=[['Actividades registradas',P.length,'list'],['Actividades terminadas',done,'check'],['En ejecución',run,'play'],['Actividades atrasadas',C.late,'alert',C.late?'bad':'ok'],['Avance físico ponderado',pct(C.real),'trend'],['Presupuesto aprobado',M(C.AP),'wallet'],['Costo ejecutado',M(C.AC),'dollar'],['Riesgos altos/críticos',C.crit,'shield',C.crit?'bad':'ok'],['No conformidades abiertas',C.nca,'clip',C.nca?'warn':'ok'],['Accidentes registrables',C.acc,'hat',C.acc?'bad':'ok']];
+ $('#kpis').innerHTML=k.map(([n,v,i,s])=>`<div class="card st ${s||'na'} p-3"><div class="tx">${ico(i)}</div><div class="text-xl font-extrabold text-[#012169] mt-1 leading-tight">${v}</div><div class="text-[11.5px] text-slate-500 leading-snug">${n}</div></div>`).join('');
+ const ini=P.reduce((m,r)=>r['Fecha inicio plan']&&(!m||r['Fecha inicio plan']<m)?r['Fecha inicio plan']:m,null),fin=P.reduce((m,r)=>r['Fecha fin plan']&&(!m||r['Fecha fin plan']>m)?r['Fecha fin plan']:m,null);
+ const hc=C.hit.filter(r=>r.Estado==='Terminado').length,hd=C.hit.length?C.hit.reduce((s,r)=>s+N(r['Desviación (días)']),0)/C.hit.length:0;
+ const k2=[['Inicio planificado',fd(ini),'cal'],['Fin planificado',fd(fin),'cal'],['Días para el fin planificado',fin?Math.round((fin-cut)/DAY):'-','cal'],['Hitos cumplidos',`${hc} de ${C.hit.length}`,'flag'],['Desviación media de hitos',hd.toFixed(1).replace('.',',')+' d','flag',hd>0?'warn':'ok'],['Avance planificado a hoy',pct(C.plan),'trend'],['SPI (plazo)',C.spi.toFixed(2).replace('.',','),'trend',C.spi>=1?'ok':C.spi>=.95?'warn':'bad'],['Por vencer en 7 días',C.soon,'alert',C.soon?'warn':'ok']];
+ $('#kpis2').innerHTML=k2.map(([n,v,i,s])=>`<div class="card st ${s||'na'} p-3"><div class="tx">${ico(i)}</div><div class="text-base font-extrabold text-[#012169] mt-1 leading-tight">${v}</div><div class="text-[11.5px] text-slate-500 leading-snug">${n}</div></div>`).join('');
+ const s=C.spi>=1?'ok':C.spi>=.9?'warn':'bad';$('#sem').className='pill st '+s;$('#sem').textContent=s==='ok'?'Obra en plazo':s==='warn'?'Desviación moderada':'Desviación crítica';
+ $('#semtxt').textContent=`Corte al ${fd(cut)} · ${C.late} actividades atrasadas`;
+ $('#big').textContent=pct(C.real);$('#bigp').textContent=pct(C.plan);building()}
+
+function building(){
+ const ph=C.ph,n=ph.length,fh=26,top=64,x0=40,W=220;let s=`<svg viewBox="0 0 300 ${top+n*fh+30}" class="w-full" role="img" aria-label="Edificio coloreado según el avance de cada fase">`;
+ s+=`<g stroke="${RD}" stroke-width="2" fill="none"><path d="M150 ${top-4}V8M150 8H64M150 8h60M64 8v10M205 8v22"/><path d="M150 8l-34 14M150 8l34 14" stroke-width="1"/></g><rect x="198" y="30" width="14" height="10" fill="${RD}"/>`;
+ s+=`<rect x="${x0-8}" y="${top-4}" width="${W+16}" height="5" fill="${NV}"/>`;
+ ph.forEach((p,k)=>{const y=top+(n-1-k)*fh,col=p.p>=.999?NV:p.p>0?RD:'#e4e9f5';
+  s+=`<g class="floor" data-k="${k}"><rect x="${x0}" y="${y+1}" width="${W}" height="${fh-2}" fill="#e9edf7" stroke="#cdd5ea"/><rect x="${x0}" y="${y+1}" width="${W*p.p}" height="${fh-2}" fill="${col}" ${p.p>0&&p.p<1?'class="live"':''}/>`;
+  for(let j=0;j<8;j++)s+=`<rect x="${x0+10+j*26}" y="${y+7}" width="14" height="10" rx="1.5" fill="#fff" opacity=".55"/>`;
+  s+=`<text x="${x0-6}" y="${y+17}" font-size="9" text-anchor="end" fill="#7b86a6">${p.k}</text><text x="${x0+W+6}" y="${y+17}" font-size="9" fill="#34406a" font-weight="700">${Math.round(p.p*100)}%</text></g>`});
+ const gy=top+n*fh;s+=`<rect x="${x0-14}" y="${gy+1}" width="${W+28}" height="6" fill="${NV}"/><rect x="${x0+W/2-14}" y="${gy-22}" width="28" height="22" fill="#fff" stroke="${NV}"/><path d="M0 ${gy+7}H300" stroke="#cdd5ea"/></svg>`;
+ $('#bld').innerHTML=s;
+ document.querySelectorAll('.floor').forEach(g=>{const p=ph[+g.dataset.k];
+  g.onmouseenter=()=>$('#floorinfo').innerHTML=`<b class="text-[#012169]">${esc(p.n)}</b>: ${pct(p.p)} real frente a ${pct(p.pl)} planificado · ${p.a.length} actividades`;
+  g.onclick=()=>{$('#fph').value=p.n;tplan();location.hash='plan'}})}
+
+function indic(){
+ const defs=Object.fromEntries(D.ind.map(r=>[String(r['Indicador']),r])),fn=inds(C);
+ $('#inds').innerHTML=D.ind.filter(r=>r['Indicador']).map((r,i)=>{const nm=String(r['Indicador']),f=fn.find(x=>nm.toLowerCase().includes(x[0])),v=f?f[1]():{v:'Sin cálculo',st:'na',d:''};
+  return`<div class="card st ${v.st} p-4 cursor-pointer" onclick="this.querySelector('.dt').classList.toggle('hidden')"><div class="flex justify-between items-start gap-2"><span class="text-[11.5px] font-semibold text-slate-500">${esc(r['Dimensión'])}</span><span class="pill ${v.st}">${{ok:'Cumple',warn:'Atención',bad:'Crítico',na:'Informativo'}[v.st]}</span></div><div class="font-bold text-[#012169] text-sm mt-1 leading-snug">${esc(nm)}</div><div class="text-2xl font-extrabold mt-1 tx">${v.v}</div>${v.b!=null?`<div class="h-1.5 bg-slate-100 rounded mt-2"><div class="h-1.5 rounded dot" style="width:${Math.min(100,v.b*100)}%"></div></div>`:''}<div class="text-xs text-slate-500 mt-2">${esc(v.d)}</div><div class="text-xs text-slate-500">Meta: <b>${esc(r['Meta / umbral sugerido'])}</b></div><div class="dt hidden mt-2 pt-2 border-t border-slate-100 text-xs text-slate-600 space-y-1"><div><b>Fórmula:</b> ${esc(r['Fórmula / método de cálculo'])}</div><div><b>Frecuencia:</b> ${esc(r['Frecuencia'])} · <b>Responsable:</b> ${esc(r['Responsable'])}</div><div><b>Uso:</b> ${esc(r['Interpretación / uso']||'')}</div></div></div>`}).join('')}
+
+function charts(){
+ const ph=C.ph,short=p=>p.k+' '+p.nm.slice(0,22);
+ mk('c1',{type:'bar',data:{labels:ph.map(short),datasets:[{label:'Planificado',data:ph.map(p=>+(p.pl*100).toFixed(1)),backgroundColor:GY},{label:'Real',data:ph.map(p=>+(p.p*100).toFixed(1)),backgroundColor:NV}]},options:{...base,indexAxis:'y',scales:{x:{max:100,ticks:{callback:v=>v+'%'}},y:{ticks:{font:{size:10}}}}}});
+ const t=P.filter(r=>r.Estado==='Terminado'),ot=t.filter(r=>r['Fecha fin real']&&r['Fecha fin real']<=r['Fecha fin plan']).length;
+ const cnt=[ot,t.length-ot,P.filter(r=>r.Estado==='En ejecución').length,P.filter(r=>r.Estado!=='Terminado'&&r.Estado!=='En ejecución').length];
+ mk('c2',{type:'doughnut',data:{labels:['Terminadas a tiempo','Terminadas con retraso','En ejecución','No iniciadas'],datasets:[{data:cnt,backgroundColor:[NV,RD,MID,GY],borderWidth:2}]},options:{...base,cutout:'62%'}});
+ const gd=ph.map(p=>{const a=p.a,s=Math.min(...a.map(r=>+r['Fecha inicio plan']||1e15)),e=Math.max(...a.map(r=>+r['Fecha fin plan']||0)),rs=a.filter(r=>r['Fecha inicio real']).map(r=>+r['Fecha inicio real']),dn=a.every(r=>r.Estado==='Terminado'),re=dn?Math.max(...a.map(r=>+r['Fecha fin real']||0)):Math.min(+cut,e+1e10);return{p,pl:[s,e],re:rs.length?[Math.min(...rs),re]:null}});
+ const mn=Math.min(...gd.map(g=>g.pl[0])),mx=Math.max(...gd.map(g=>g.pl[1]));
+ mk('c3',{type:'bar',data:{labels:ph.map(short),datasets:[{label:'Plan',data:gd.map(g=>g.pl),backgroundColor:GY,barPercentage:.9},{label:'Real',data:gd.map(g=>g.re),backgroundColor:NV,barPercentage:.9}]},options:{...base,indexAxis:'y',scales:{x:{type:'linear',min:mn-15*DAY,max:mx+15*DAY,ticks:{maxTicksLimit:10,callback:v=>new Date(v).toLocaleDateString('es-CO',{month:'short',year:'2-digit'})}},y:{ticks:{font:{size:10}}}},plugins:{...base.plugins,tooltip:{callbacks:{label:c=>c.raw?`${c.dataset.label}: ${fd(new Date(c.raw[0]))} a ${fd(new Date(c.raw[1]))}`:''}}}},plugins:[{afterDatasetsDraw(ch){const x=ch.scales.x.getPixelForValue(+cut),{top,bottom}=ch.chartArea,c=ch.ctx;c.save();c.strokeStyle=RD;c.setLineDash([5,4]);c.lineWidth=2;c.beginPath();c.moveTo(x,top);c.lineTo(x,bottom);c.stroke();c.restore()}}]});
+ mk('c4',{type:'bar',data:{labels:C.hit.map(r=>r['ID actividad']+' '+String(r['Actividad']).slice(0,26)),datasets:[{label:'Desviación (días)',data:C.hit.map(r=>N(r['Desviación (días)'])),backgroundColor:C.hit.map(r=>N(r['Desviación (días)'])>0?RD:NV)}]},options:{...base,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}}}}});
+ const pr=C.pr,mm=v=>+(v/1e6).toFixed(0);
+ mk('c5',{type:'bar',data:{labels:pr.map(r=>String(r.n).slice(0,28)),datasets:[{label:'Presupuesto aprobado',data:pr.map(r=>mm(r.ap)),backgroundColor:GY},{label:'Valor ganado',data:pr.map(r=>mm(r.ev)),backgroundColor:MID},{label:'Costo ejecutado',data:pr.map(r=>mm(r.ej)),backgroundColor:RD}]},options:{...base,indexAxis:'y',scales:{y:{ticks:{font:{size:9}}}}}});
+ let a=0,b=0;const cj=C.caja.map(r=>({m:fd(r['Periodo (mes)']).replace(/^\d+ /,''),p:(a+=N(r['Desembolso programado'])),r:(b+=N(r['Desembolso real']))}));
+ mk('c6',{type:'line',data:{labels:cj.map(x=>x.m),datasets:[{label:'Programado acumulado',data:cj.map(x=>mm(x.p)),borderColor:NV,backgroundColor:NV+'18',fill:true,tension:.3},{label:'Real acumulado',data:cj.map(x=>mm(x.r)),borderColor:RD,tension:.3,pointRadius:4}]},options:base});
+ const cc=k=>C.cal.filter(r=>k(String(r['Resultado'])));
+ mk('c7',{type:'doughnut',data:{labels:['Conforme','Conforme con observación','No conforme'],datasets:[{data:[cc(s=>s.startsWith('Conforme')&&!/observ/i.test(s)).length,cc(s=>/observ/i.test(s)).length,C.ncs.length],backgroundColor:[NV,MID,RD],borderWidth:2}]},options:{...base,cutout:'60%'}});
+ const ty=[...grp(C.sst,r=>r['Tipo de registro']||'Otro')];
+ mk('c8',{type:'bar',data:{labels:ty.map(x=>x[0]),datasets:[{label:'Cerradas',data:ty.map(x=>x[1].filter(r=>r['Estado acción']==='Cerrada').length),backgroundColor:NV},{label:'Abiertas o en seguimiento',data:ty.map(x=>x[1].filter(r=>r['Estado acción']!=='Cerrada').length),backgroundColor:RD}]},options:{...base,scales:{x:{stacked:true},y:{stacked:true,ticks:{precision:0}}}}});
+ const es=[...grp(C.comp,r=>r['Estado']||'Sin estado')];
+ mk('c9',{type:'doughnut',data:{labels:es.map(x=>x[0]),datasets:[{data:es.map(x=>x[1].length),backgroundColor:[NV,RD,MID,GY,'#9aa8d3','#34406a'],borderWidth:2}]},options:{...base,cutout:'55%'}});
+ mk('c10',{type:'bar',data:{labels:C.con.map(r=>r['Contratista / proveedor']),datasets:[{label:'Avance físico',data:C.con.map(r=>N(r['% avance físico'])),backgroundColor:NV},{label:'Avance financiero',data:C.con.map(r=>N(r['% avance financiero'])),backgroundColor:RD}]},options:{...base,scales:{y:{max:100}}}})}
+
+function risks(){
+ const l=RM?'l1':'l0',p=RM?'p1':'p0',i=RM?'i1':'i0';let h='<div class="grid grid-cols-[18px_repeat(5,1fr)] gap-1 text-[10px] text-center">';
+ for(let im=5;im>=1;im--){h+=`<div class="self-center text-slate-400">${im}</div>`;for(let pr=1;pr<=5;pr++){const v=im*pr,c=v>=12?'#CA102E':v>=6?'#e8b04a':'#cfe3d6',ids=C.ri.filter(r=>r[p]===pr&&r[i]===im);h+=`<div class="rounded-md h-12 flex flex-wrap items-center justify-center content-center gap-0.5 p-0.5" style="background:${c}${v>=12?'':'aa'}" title="Nivel ${v}">${ids.map(r=>`<span class="bg-white text-[#012169] font-bold rounded px-1" title="${esc(r['Riesgo / oportunidad'])}">${esc(r.ID)}</span>`).join('')}</div>`}}
+ h+='<div></div>'+[1,2,3,4,5].map(x=>`<div class="text-slate-400">${x}</div>`).join('')+'</div><div class="text-[10.5px] text-slate-500 mt-1">Filas: impacto. Columnas: probabilidad.</div>';$('#rm').innerHTML=h}
+document.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{RM=+b.dataset.rm;document.querySelectorAll('[data-rm]').forEach(x=>x.classList.toggle('on',x===b));risks()});
+
+function ent(){const e=D.ent.filter(r=>r['Entregable / requisito']),d=e.filter(r=>/^(cerr|cumpl|complet|termin|recib|aprob)/i.test(r['Estado'])).length;
+ $('#ent').innerHTML=`<div class="flex items-center gap-3 mb-3"><div class="flex-1 h-2.5 bg-slate-100 rounded"><div class="h-2.5 rounded bg-[#012169]" style="width:${e.length?d/e.length*100:0}%"></div></div><b class="text-[#012169]">${d} de ${e.length} cerrados</b></div><div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">${e.map(r=>`<div class="flex gap-2 text-xs items-start p-2 rounded-lg bg-[#f6f8fd]"><span class="${/^(cerr|cumpl|complet|termin|recib|aprob)/i.test(r['Estado'])?'text-[#012169]':'text-slate-400'}">${ico('check')}</span><span><b>${esc(r.ID)}</b> ${esc(r['Entregable / requisito'])}<br><span class="text-slate-500">${esc(r['Estado'])}</span></span></div>`).join('')}</div>`}
+
+/* ---------- plan de trabajo ---------- */
+function filters(){const v=['#fph','#fes','#fal'].map(s=>$(s).value);
+ $('#fph').innerHTML=sel('Todas las fases',C.ph.map(p=>p.n));$('#fes').innerHTML=sel('Todos los estados',[...new Set(P.map(r=>r.Estado))]);$('#fal').innerHTML=sel('Toda alerta',['Atrasada','Por vencer','En plazo','Cerrada']);
+ ['#fph','#fes','#fal'].forEach((s,i)=>$(s).value=v[i]||'')}
+['#q','#fph','#fes','#fal'].forEach(s=>$(s).oninput=()=>tplan());
+$('#clr').onclick=()=>{['#q','#fph','#fes','#fal'].forEach(s=>$(s).value='');tplan()};
+function tplan(){const q=$('#q').value.toLowerCase(),f=$('#fph').value,e=$('#fes').value,a=$('#fal').value;
+ const R=P.filter(r=>(!f||r.Fase===f)&&(!e||r.Estado===e)&&(!a||r.al===a)&&(!q||(r['Actividad / tarea']+' '+r['Responsable']).toLowerCase().includes(q)));
+ const al={Atrasada:'bad','Por vencer':'warn','En plazo':'ok',Cerrada:'na','Sin fecha':'na'};
+ $('#cnt').textContent=R.length+' de '+P.length+' actividades';
+ $('#tplan').innerHTML='<thead><tr>'+['ID','Fase','Actividad','Responsable','Inicio plan','Fin plan','Estado','Avance','Alerta','Desv. (días)'].map(h=>`<th>${h}</th>`).join('')+'</tr></thead><tbody>'+R.map(r=>`<tr><td class="font-bold text-[#012169]">${esc(r.ID)}</td><td>${esc(String(r.Fase).replace(/^\d+\.\s*/,'').toLowerCase())}</td><td style="min-width:260px">${esc(r['Actividad / tarea'])}</td><td>${esc(r.Responsable)}</td><td>${fd(r['Fecha inicio plan'])}</td><td>${fd(r['Fecha fin plan'])}</td><td>${esc(r.Estado)}</td><td style="min-width:110px"><div class="flex items-center gap-2"><div class="flex-1 h-1.5 bg-slate-100 rounded"><div class="h-1.5 rounded" style="width:${r.p*100}%;background:${r.p>=1?NV:RD}"></div></div><span class="text-[11px]">${Math.round(r.p*100)}%</span></div></td><td><span class="pill ${al[r.al]}">${r.al}</span></td><td class="${r.dev>0?'text-[#CA102E] font-bold':''}">${r.dev}</td></tr>`).join('')+'</tbody>'}
+
+/* ---------- todas las hojas ---------- */
+let TAB='comp';
+function tabs(){$('#tabs').innerHTML=D.names.filter(([k])=>k!=='ind'&&k!=='plan').map(([k,n])=>`<button class="btn ${k===TAB?'on':''}" data-t="${k}">${esc(n)} <span class="opacity-60">${D[k].length}</span></button>`).join('');
+ document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{TAB=b.dataset.t;tabs()});tdata()}
+$('#dq').oninput=()=>tdata();
+function tdata(){const rows=D[TAB]||[],q=$('#dq').value.toLowerCase();if(!rows.length){$('#tdata').innerHTML='<tbody><tr><td class="p-6 text-slate-500">Esta hoja aún no tiene registros. Diligencie el Excel y aparecerán aquí.</td></tr></tbody>';return}
+ const cols=Object.keys(rows[0]).filter(k=>rows.some(r=>r[k]!=null)),R=rows.filter(r=>!q||cols.some(k=>String(r[k]??'').toLowerCase().includes(q)));
+ const f=v=>v instanceof Date?fd(v):typeof v==='number'?(Math.abs(v)>=1e6?M(v):String(+v.toFixed(2)).replace('.',',')):esc(v);
+ $('#tdata').innerHTML='<thead><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr></thead><tbody>'+R.map(r=>'<tr>'+cols.map(c=>`<td>${f(r[c])}</td>`).join('')+'</tr>').join('')+'</tbody>'}
+
+pull();setInterval(()=>pull(true),60000);
+</script>
+</body>
+</html>
